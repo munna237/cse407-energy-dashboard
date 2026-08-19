@@ -142,19 +142,79 @@ with st.expander("Raw results table"):
     st.dataframe(filtered, use_container_width=True)
 
 # ---------------------------------------------------------------------------
-# Optional: raw per-second power curve viewer
+# Raw power/utilization curves — GPU (3 tasks), CPU (3 tasks), and combined
 # ---------------------------------------------------------------------------
-st.sidebar.header("Raw power curve (optional)")
-raw_upload = st.sidebar.file_uploader("Upload one raw_logs/*_power.csv file", type="csv", key="raw_curve")
-if raw_upload is not None:
-    raw_df = pd.read_csv(raw_upload)
-    st.subheader(f"Raw power / utilization curve — {raw_upload.name}")
-    if {"t_s", "value", "source"}.issubset(raw_df.columns):
-        st.plotly_chart(px.line(raw_df, x="t_s", y="value", color="source",
-                                 labels={"t_s": "seconds into run", "value": "watts or % util"}),
-                         use_container_width=True)
-    else:
-        st.error("This file doesn't look like a raw_logs power CSV (expected t_s, value, source columns).")
+import re as _re
+
+st.sidebar.header("Raw power curves")
+st.sidebar.caption("Six bundled example curves (one per task/device) load automatically below. "
+                    "Upload your own raw_logs/*_power.csv files here to add or override any of them.")
+uploaded_curves = st.sidebar.file_uploader(
+    "Upload raw_logs/*_power.csv file(s)", type="csv", accept_multiple_files=True, key="raw_curves"
+)
+
+_CURVE_NAME_RE = _re.compile(r"(gpu|cpu)_(image_processing|text_generation|chatbot)")
+
+def _load_curve_bundle():
+    curves = {}
+    bundled_dir = Path(__file__).parent / "data" / "power_curves"
+    if bundled_dir.exists():
+        for f in sorted(bundled_dir.glob("*.csv")):
+            m = _CURVE_NAME_RE.match(f.stem)
+            if m:
+                curves[m.groups()] = pd.read_csv(f)
+    if uploaded_curves:
+        for uf in uploaded_curves:
+            m = _CURVE_NAME_RE.match(Path(uf.name).stem)
+            if m:
+                curves[m.groups()] = pd.read_csv(uf)  # uploads override bundled defaults with the same name
+    return curves
+
+curve_bundle = _load_curve_bundle()
+
+st.subheader("Raw power / utilization curves")
+if curve_bundle:
+    parts = []
+    for (device, task), cdf in curve_bundle.items():
+        cdf = cdf.copy()
+        cdf["device_type"] = device
+        cdf["task"] = task.replace("_", " ").title()
+        parts.append(cdf)
+    all_curves = pd.concat(parts, ignore_index=True)
+
+    gpu_curves = all_curves[all_curves["device_type"] == "gpu"]
+    cpu_curves = all_curves[all_curves["device_type"] == "cpu"]
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.markdown("**GPU — all three tasks (watts, NVML measured)**")
+        if not gpu_curves.empty:
+            fig_gpu = px.line(gpu_curves, x="t_s", y="value", color="task",
+                               labels={"t_s": "seconds into run", "value": "watts"})
+            st.plotly_chart(fig_gpu, use_container_width=True)
+        else:
+            st.caption("No GPU curves loaded.")
+    with col_b:
+        st.markdown("**CPU — all three tasks (% utilization proxy — see caveat above)**")
+        if not cpu_curves.empty:
+            fig_cpu = px.line(cpu_curves, x="t_s", y="value", color="task",
+                               labels={"t_s": "seconds into run", "value": "% utilization"})
+            st.plotly_chart(fig_cpu, use_container_width=True)
+        else:
+            st.caption("No CPU curves loaded.")
+
+    st.markdown("**Overall — GPU (watts) and CPU (% utilization) together, all six task/device curves**")
+    st.caption("GPU and CPU rows use independent y-axis scales since they're different units (watts vs. % utilization) — see the two charts above for each on its own scale.")
+    all_curves["device_label"] = all_curves["device_type"].str.upper()
+    fig_overall = px.line(
+        all_curves, x="t_s", y="value", color="task", facet_row="device_label",
+        labels={"t_s": "seconds into run", "value": "watts or % util"},
+        height=550,
+    )
+    fig_overall.update_yaxes(matches=None)
+    st.plotly_chart(fig_overall, use_container_width=True)
+else:
+    st.info("No power curves available. Upload raw_logs/*_power.csv files in the sidebar to see them here.")
 
 st.divider()
 st.caption(
