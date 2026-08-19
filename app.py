@@ -9,6 +9,35 @@ st.title("⚡ GPU vs CPU Energy Profiling Dashboard")
 st.caption("CSE407 Green Computing — comparative energy profile of everyday AI workloads")
 
 # ---------------------------------------------------------------------------
+# Methodology panel — always visible, not filter-dependent
+# ---------------------------------------------------------------------------
+import json as _json
+
+methodology_upload = st.sidebar.file_uploader("Upload methodology.json (optional)", type="json")
+methodology = None
+default_methodology_path = Path(__file__).parent / "data" / "methodology.json"
+if methodology_upload is not None:
+    methodology = _json.load(methodology_upload)
+elif default_methodology_path.exists():
+    methodology = _json.load(open(default_methodology_path))
+
+with st.container(border=True):
+    st.markdown("**📋 Methodology — dataset and model per task**")
+    if methodology:
+        m_cols = st.columns(len(methodology))
+        for col, (task_name, meta) in zip(m_cols, methodology.items()):
+            with col:
+                st.markdown(f"**{task_name.replace('_', ' ').title()}**")
+                st.markdown(f"Dataset: {meta.get('dataset', '—')}")
+                st.markdown(f"Model: {meta.get('model', '—')}")
+                st.markdown(f"Real samples available: {meta.get('n_real_samples', '—')}")
+    else:
+        st.markdown(
+            "_Upload `methodology.json` (produced by the v3 notebook's dataset-loading cell) "
+            "in the sidebar to display the exact dataset and model used for each task here._"
+        )
+
+# ---------------------------------------------------------------------------
 # Data loading
 # ---------------------------------------------------------------------------
 st.sidebar.header("Data")
