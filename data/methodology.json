@@ -1,0 +1,20 @@
+{
+  "image_processing": {
+    "dataset": "CIFAR-10 (test split)",
+    "source": "Hugging Face datasets (uoft-cs/cifar10)",
+    "n_real_samples": 10000,
+    "model": "ResNet-50 (ImageNet-pretrained, torchvision)"
+  },
+  "text_generation": {
+    "dataset": "WikiText-2-raw-v1 (test split)",
+    "source": "Hugging Face datasets (Salesforce/wikitext)",
+    "n_real_samples": 1940,
+    "model": "GPT-2 (124M, Hugging Face transformers)"
+  },
+  "chatbot": {
+    "dataset": "SQuAD v1.1 (validation split)",
+    "source": "Hugging Face datasets (rajpurkar/squad)",
+    "n_real_samples": 10570,
+    "model": "GPT-2 (124M, Hugging Face transformers)"
+  }
+}
